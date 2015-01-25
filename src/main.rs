@@ -1,3 +1,4 @@
+#![allow(unstable)]
 extern crate core;
 
 use std::os;
