@@ -57,19 +57,20 @@ impl Process {
         let content = try!(file.read_to_string());
 
         let mut it = content.as_slice().split('\n');
-        let mut lines = Box::new(Vec::new());
+        let mut lines = Vec::new();
         loop {
             match it.next() {
                 None => break,
                 Some(ref line) => {
-                    if line.trim() != "" {
+                    // Remove empty lines & comment lines
+                    if line.trim() != "" && !line.trim().starts_with("#") {
                         lines.push(String::from_str(line.trim()));
                     }
                 }
             }
         }
 
-        return Ok(lines);
+        return Ok(Box::new(lines));
     }
 }
 

@@ -4,6 +4,7 @@ extern crate core;
 use std::os;
 use core::ops::Index;
 use std::string::String;
+use std::vec::Vec;
 
 mod process;
 mod parser;
@@ -37,4 +38,14 @@ fn main() {
         Ok(_) => {},
         Err(err) => panic!(err)
     }
+
+    let mut lines = Box::new(Vec::new());
+    match process.read() {
+        Err(err) => panic!(err.desc),
+        Ok (file_lines) => {
+            lines = file_lines;
+        }
+    }
+
+    let mut parser = parser::Parser::new(lines);
 }
