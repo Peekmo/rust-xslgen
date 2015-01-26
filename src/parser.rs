@@ -10,7 +10,7 @@ enum ParserContext {
 pub struct Node {
     pub name: String,
     pub namespace: Option<String>,
-    pub attributes: Option<Vec<Box<Attribute>>>,
+    pub attributes: Vec<Box<Attribute>>,
     pub children: Option<Vec<Box<Node>>>,
     pub parent: Option<Box<Node>>
 }
@@ -26,7 +26,7 @@ pub struct Parser {
     current_node: Option<Box<Node>>,
     buffer: String,
     context: ParserContext,
-    pub nodes: Vec<Node>,
+    pub nodes: Vec<Box<Node>>,
 }
 
 impl Parser {
