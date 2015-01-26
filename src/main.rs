@@ -6,6 +6,7 @@ use core::ops::Index;
 use std::string::String;
 
 mod process;
+mod parser;
 
 fn main() {
     let mut args = os::args();
