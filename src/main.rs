@@ -8,6 +8,7 @@ use std::vec::Vec;
 
 mod process;
 mod parser;
+mod XSL;
 
 fn main() {
     let mut args = os::args();
@@ -39,13 +40,14 @@ fn main() {
         Err(err) => panic!(err)
     }
 
-    let mut lines = Box::new(Vec::new());
-    match process.read() {
+    let lines = match process.read() {
         Err(err) => panic!(err.desc),
-        Ok (file_lines) => {
-            lines = file_lines;
-        }
-    }
+        Ok (file_lines) => file_lines
+    };
 
     let mut parser = parser::Parser::new(lines);
+    parser.parse();
+
+    let string = XSL::build_from_nodes(&parser.nodes);
+    println!("{}", string);
 }

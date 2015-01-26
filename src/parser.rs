@@ -1,5 +1,12 @@
 use std::vec::Vec;
 
+enum ParserContext {
+    Empty,
+    Tag,
+    Attribute,
+    Expression
+}
+
 pub struct Node {
     pub name: String,
     pub namespace: Option<String>,
@@ -15,8 +22,11 @@ pub struct Attribute {
 
 pub struct Parser {
     xslg_file: Box<Vec<String>>,
+    current_attribute: Option<Box<Attribute>>,
+    current_node: Option<Box<Node>>,
+    buffer: String,
+    context: ParserContext,
     pub nodes: Vec<Node>,
-    pub current_node: Option<Box<Node>>
 }
 
 impl Parser {
@@ -24,7 +34,16 @@ impl Parser {
         Parser {
             xslg_file: xslg_file,
             nodes: Vec::new(),
-            current_node: None
+            current_node: None,
+            current_attribute: None,
+            buffer: String::new(),
+            context: ParserContext::Empty
+        }
+    }
+
+    pub fn parse(&self) {
+        for line in self.xslg_file.iter() {
+            println!("{}", line);
         }
     }
 }
