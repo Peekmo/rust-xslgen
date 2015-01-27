@@ -2,9 +2,9 @@
 @stylesheet [ xsl: "http://xsl", tif: "http://tif", dc: "http://dc", dcterms: "http://dcterms" ] {
     @output [ method: "xml", omit-xml-declaration: "no", indent: "yes", encoding: "UTF-8" ] {
         # Test
-        &dc.DublinCore {
-            &dc.title : "My title"
-            &dc.author : "Axel Anceau"
+        dc.DublinCore {
+            dc.title : "My title"
+            dc.author : "Axel Anceau"
         }
 
 
