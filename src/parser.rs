@@ -4,7 +4,8 @@ enum ParserContext {
     Empty,
     Tag,
     Attribute,
-    Expression
+    Expression,
+    InsideString
 }
 
 pub struct Node {
@@ -29,6 +30,27 @@ pub struct Parser {
     pub nodes: Vec<Box<Node>>,
 }
 
+impl Node {
+    pub fn new() -> Self {
+        Node {
+            name: String::new(),
+            namespace: None,
+            attributes: Vec::new(),
+            children: None,
+            parent: None
+        }
+    }
+}
+
+impl Attribute {
+    pub fn new() -> Self {
+        Attribute {
+            key: String::new(),
+            value: String::new()
+        }
+    }
+}
+
 impl Parser {
     pub fn new(xslg_file: Box<Vec<String>>) -> Self {
         Parser {
@@ -41,9 +63,57 @@ impl Parser {
         }
     }
 
-    pub fn parse(&self) {
+    pub fn parse(&mut self) {
         for line in self.xslg_file.iter() {
-            println!("{}", line);
+            self.buffer.clear();
+
+            for current_char in line.as_bytes().iter() {
+                let cha = *current_char as char;
+
+                match self.context {
+                    /**
+                     * --------------  Empty context !
+                     */
+                    ParserContext::Empty => {
+                        match cha {
+                            '@' | '.' => {
+                                let mut node = Box::new(Node::new());
+
+                                node.namespace = match cha {
+                                    '@' => { Some(String::from_str("xsl")) },
+                                    '.' => { Some(self.buffer.clone()) },
+                                    _   => { None }
+                                };
+
+                                self.context = ParserContext::Tag;
+                                self.current_node = Some(node);
+                                self.buffer.clear();
+                            },
+                            ' ' => {
+                                match self.buffer.as_slice() {
+                                    "if" => {},
+                                    "elsif" => {},
+                                    "else" => {},
+                                    "" => {},
+                                    _ => {
+                                        let mut node = Box::new(Node::new());
+                                        node.name = self.buffer.clone();
+
+                                        self.context = ParserContext::Tag;
+                                        self.current_node = Some(node);
+                                        self.buffer.clear();
+                                    }
+                                }
+                            },
+                            _ => { self.buffer.push(cha); }
+                        }
+                    }
+                    _ => { panic!("Transpiler error -- Unknown context"); }
+                }
+                self.buffer.push(*current_char as char);
+            }
+
+            println!("{}", self.buffer);
         }
     }
 }
