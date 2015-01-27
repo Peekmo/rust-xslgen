@@ -1,4 +1,4 @@
-@?xml [version: "1.0", encoding: "UTF-8"]
+?xml [version: "1.0", encoding: "UTF-8"]
 @stylesheet [ xsl: "http://xsl", tif: "http://tif", dc: "http://dc", dcterms: "http://dcterms" ] {
     @output [ method: "xml", omit-xml-declaration: "no", indent: "yes", encoding: "UTF-8" ] {
         # Test
