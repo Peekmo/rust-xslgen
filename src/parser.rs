@@ -152,7 +152,7 @@ impl Parser {
                     self.buffer.clear();
                     },
 
-                    // Everything else is a tag without prefix
+                    // Everything else is a tag without namespace (like a lonely cowboy)
                     _ => {
                         let mut node = Box::new(
                             Node::new(
