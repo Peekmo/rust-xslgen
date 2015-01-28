@@ -8,7 +8,7 @@ use std::vec::Vec;
 
 mod process;
 mod parser;
-mod XSL;
+mod xsl;
 
 fn main() {
     let mut args = os::args();
@@ -48,6 +48,6 @@ fn main() {
     let mut parser = parser::Parser::new(lines);
     parser.parse();
 
-    let string = XSL::build_from_nodes(&parser.nodes);
+    let string = xsl::build_from_nodes(&parser.nodes);
     println!("{}", string);
 }

@@ -2,6 +2,7 @@ use std::vec::Vec;
 use std::rc::Rc;
 use std::cell::RefCell;
 use core::ops::DerefMut;
+use core::ops::Deref;
 
 /// ParserContext's different states
 /// So brillant !
@@ -87,8 +88,8 @@ impl Parser {
     /// Sets the current_node to the process
     /// It will also set node's parent if needed
     fn set_current_node(&mut self, node: Rc<RefCell<Node>>) {
-        let mut mut_node = node.borrow_mut();
-        let mut deref_node = mut_node.deref_mut();
+        let mut_node = node.borrow();
+        let deref_node = mut_node.deref();
 
         // Updates children of the given parent.
         // Yes, I can build a family. So genius !
@@ -188,7 +189,7 @@ impl Parser {
 
                     // Everything else is a tag without namespace (like a lonely cowboy)
                     _ => {
-                        let mut node = Node::new(
+                        let node = Node::new(
                             self,
                             None,
                             Some(self.buffer.clone())
@@ -200,6 +201,20 @@ impl Parser {
                     }
                 }
             },
+
+            // End of a block (so so sad...)
+            // Changes the current_node to the current one parent
+            '}' => {
+                self.current_node = match self.current_node {
+                    None => { panic!("Syntax error - Found '}' (end block) without a block before"); },
+                    Some(ref node) => {
+                        match node.borrow().deref().parent {
+                            None => { None },
+                            Some(ref parent) => { Some(parent.clone()) }
+                        }
+                    }
+                }
+            }
 
             // If nothing interesting happened... let's continue !
             _ => { self.buffer.push(cha); }

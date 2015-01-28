@@ -60,7 +60,7 @@ fn add_balise_name(node: &Node, string: &mut String) {
 
 /// Add the given number of tabs to the given string
 fn add_tabs(string: &mut String, nb: &mut isize) {
-    for i in range(0, *nb) {
+    for _ in range(0, *nb) {
         string.push_str("\t");
     }
 }
