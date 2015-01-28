@@ -40,6 +40,7 @@ fn build_string(nodes: &Vec<Rc<RefCell<Node>>>, string: &mut String, tabs: &mut 
                 build_string(children, string, tabs);
                 *tabs -= 1;
 
+                add_tabs(string, tabs);
                 string.push_str("</");
                 add_balise_name(deref_node, string);
                 string.push_str(">\n");

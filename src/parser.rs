@@ -11,7 +11,8 @@ enum ParserContext {
     Tag,
     Attribute,
     Expression,
-    InsideString
+    InsideString,
+    NewBlock
 }
 
 /// A node is a complete <xsl:when test="peekmo_qi > einstein_qi"> (for example)
@@ -125,6 +126,15 @@ impl Parser {
         // We will read all the lines.. Yes.. So boring.
         for line in self.xslg_file.clone().iter() {
             self.buffer.clear();
+
+            match self.context {
+                ParserContext::NewBlock | ParserContext::Empty => {},
+                _ => self.current_node = match self.current_node {
+                    None => { None },
+                    Some(ref node) => { node.borrow().deref().parent.clone() }
+                }
+            }
+
             self.context = ParserContext::Empty;
 
             // A char by char work.. Yes.. That's life
@@ -136,6 +146,10 @@ impl Parser {
                     // Empty context ? Yes we don't know where we are !
                     ParserContext::Empty => {
                         self.parse_empty_context(cha);
+                    },
+
+                    ParserContext::Tag   => {
+                        self.parse_tag_context(cha);
                     },
 
                     // WTF ! Poor lazy man, do your job ! (Yes, I'm not paid for it but..)
@@ -217,6 +231,26 @@ impl Parser {
             }
 
             // If nothing interesting happened... let's continue !
+            _ => { self.buffer.push(cha); }
+        }
+    }
+
+    // A new character in tag context comes will be welcome here :)
+    // Hey !! I'M DORA !!!
+    fn parse_tag_context(&mut self, cha: char) {
+        match cha {
+            '{' => {
+                match self.current_node {
+                    None => { panic!("No node found"); },
+                    Some(ref node) => {
+                        node.borrow_mut().deref_mut().name = self.buffer.clone();
+                    }
+                }
+
+                self.context = ParserContext::NewBlock;
+                self.buffer.clear();
+            }
+
             _ => { self.buffer.push(cha); }
         }
     }
