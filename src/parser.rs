@@ -1,4 +1,7 @@
 use std::vec::Vec;
+use std::rc::Rc;
+use std::cell::RefCell;
+use core::ops::DerefMut;
 
 /// ParserContext's different states
 /// So brillant !
@@ -16,8 +19,8 @@ pub struct Node {
     pub name: String,
     pub namespace: Option<String>,
     pub attributes: Vec<Box<Attribute>>,
-    pub children: Option<Vec<Box<Node>>>,
-    pub parent: Option<Box<Node>>
+    pub children: Option<Vec<Rc<RefCell<Node>>>>,
+    pub parent: Option<Rc<RefCell<Node>>>
 }
 
 /// A node attribute element (test="peekmo_qi > einstein_qi")
@@ -32,10 +35,10 @@ pub struct Attribute {
 pub struct Parser {
     xslg_file: Box<Vec<String>>,
     current_attribute: Option<Box<Attribute>>,
-    current_node: Option<Box<Node>>,
+    current_node: Option<Rc<RefCell<Node>>>,
     buffer: String,
     context: ParserContext,
-    pub nodes: Vec<Box<Node>>,
+    pub nodes: Vec<Rc<RefCell<Node>>>,
 }
 
 impl Node {
@@ -81,6 +84,37 @@ impl Parser {
         }
     }
 
+    /// Sets the current_node to the process
+    /// It will also set node's parent if needed
+    fn set_current_node(&mut self, node: Rc<RefCell<Node>>) {
+        let mut mut_node = node.borrow_mut();
+        let mut deref_node = mut_node.deref_mut();
+
+        // Updates children of the given parent.
+        // Yes, I can build a family. So genius !
+        match deref_node.parent {
+            None        => { self.nodes.push(node.clone()); },
+            Some(ref parent) => {
+                let mut mut_parent = parent.borrow_mut();
+                let mut ref_parent = mut_parent.deref_mut();
+
+                match ref_parent.children {
+                    Some(ref mut children) => {
+                        children.push(node.clone());
+                    },
+                    None => {
+                        let mut children = Vec::new();
+                        children.push(node.clone());
+
+                        ref_parent.children = Some(children);
+                    }
+                }
+            }
+        }
+
+        self.current_node = Some(node.clone());
+    }
+
     /// Parse its xslg_file to store a Node representation of the file (to build the XSL file from
     /// them !!)
     /// <--- MAGIC HAPPENED HERE !!!
@@ -118,7 +152,7 @@ impl Parser {
             //
             // So... Let's build the tag !!!
             '@' | '.' => {
-                let mut node = Box::new(Node::new(self, None, None));
+                let mut node = Node::new(self, None, None);
 
                 node.namespace = match cha {
                     '@' => { Some(String::from_str("xsl")) },
@@ -127,7 +161,7 @@ impl Parser {
                 };
 
                 self.context = ParserContext::Tag;
-                self.current_node = Some(node);
+                self.set_current_node(Rc::new(RefCell::new(node)));
                 self.buffer.clear();
             },
 
@@ -141,33 +175,33 @@ impl Parser {
 
                     // Conditional expressions (for too perhaps ?)
                     "if" | "elsif" | "else" => {
-                        let mut node = Box::new(Node::new(self, None, None));
+                        let mut node = Node::new(self, None, None);
 
-                    // TODO update here after antoine's answer (XSL MASTER)
-                    node.namespace = Some(String::from_str("xsl"));
-                    node.name =  String::from_str("when");
+                        // TODO update here after antoine's answer (XSL MASTER)
+                        node.namespace = Some(String::from_str("xsl"));
+                        node.name =  String::from_str("when");
 
-                    self.context = ParserContext::Expression;
-                    self.current_node = Some(node);
-                    self.buffer.clear();
+                        self.context = ParserContext::Expression;
+                        self.set_current_node(Rc::new(RefCell::new(node)));
+                        self.buffer.clear();
                     },
 
                     // Everything else is a tag without namespace (like a lonely cowboy)
                     _ => {
-                        let mut node = Box::new(
-                            Node::new(
-                                self,
-                                None,
-                                Some(self.buffer.clone())
-                                )
+                        let mut node = Node::new(
+                            self,
+                            None,
+                            Some(self.buffer.clone())
                             );
 
                         self.context = ParserContext::Tag;
-                        self.current_node = Some(node);
+                        self.set_current_node(Rc::new(RefCell::new(node)));
                         self.buffer.clear();
                     }
                 }
             },
+
+            // If nothing interesting happened... let's continue !
             _ => { self.buffer.push(cha); }
         }
     }

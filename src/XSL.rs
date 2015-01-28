@@ -1,8 +1,11 @@
 use std::string::String;
 use parser::Node;
+use std::rc::Rc;
+use std::cell::RefCell;
+use core::ops::Deref;
 
 /// Builds an XSL string from parsed nodes
-pub fn build_from_nodes(nodes: &Vec<Box<Node>>) -> String {
+pub fn build_from_nodes(nodes: &Vec<Rc<RefCell<Node>>>) -> String {
     let mut string = String::new();
     let mut tabs = 0;
 
@@ -12,18 +15,21 @@ pub fn build_from_nodes(nodes: &Vec<Box<Node>>) -> String {
 }
 
 /// Builds the string from the current nodes
-fn build_string(nodes: &Vec<Box<Node>>, string: &mut String, tabs: &mut isize) {
+fn build_string(nodes: &Vec<Rc<RefCell<Node>>>, string: &mut String, tabs: &mut isize) {
     for node in nodes.iter() {
+        let mut_node = node.borrow();
+        let deref_node = mut_node.deref();
+
         add_tabs(string, tabs);
         string.push_str("<");
 
-        add_balise_name(&**node, string);
+        add_balise_name(deref_node, string);
 
-        for attr in node.attributes.iter() {
+        for attr in deref_node.attributes.iter() {
             string.push_str(format!(" {}={}", attr.key, attr.value).as_slice());
         }
 
-        match node.children {
+        match deref_node.children {
             None => {
                 string.push_str("/>\n");
             },
@@ -35,7 +41,7 @@ fn build_string(nodes: &Vec<Box<Node>>, string: &mut String, tabs: &mut isize) {
                 *tabs -= 1;
 
                 string.push_str("</");
-                add_balise_name(&**node, string);
+                add_balise_name(deref_node, string);
                 string.push_str(">\n");
             }
         }
