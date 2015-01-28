@@ -9,7 +9,7 @@ use core::ops::Deref;
 enum ParserContext {
     Empty,
     Tag,
-    Attribute,
+    Attributes,
     Expression,
     InsideString,
     NewBlock
@@ -40,6 +40,7 @@ pub struct Parser {
     current_node: Option<Rc<RefCell<Node>>>,
     buffer: String,
     context: ParserContext,
+    line_number: isize,
     pub nodes: Vec<Rc<RefCell<Node>>>,
 }
 
@@ -82,6 +83,7 @@ impl Parser {
             current_node: None,
             current_attribute: None,
             buffer: String::new(),
+            line_number: 0,
             context: ParserContext::Empty
         }
     }
@@ -123,19 +125,28 @@ impl Parser {
     /// <--- HEARTH OF THE EARTH !!!
     /// <--- THANK YOU LORD !!!
     pub fn parse(&mut self) {
+        self.line_number = 0;
+
         // We will read all the lines.. Yes.. So boring.
         for line in self.xslg_file.clone().iter() {
+            self.line_number += 1;
             self.buffer.clear();
 
+            // What to do with the last context
             match self.context {
-                ParserContext::NewBlock | ParserContext::Empty => {},
-                _ => self.current_node = match self.current_node {
-                    None => { None },
-                    Some(ref node) => { node.borrow().deref().parent.clone() }
+                ParserContext::Attributes | ParserContext::InsideString => {},
+                ParserContext::NewBlock | ParserContext::Empty | ParserContext::Expression => {
+                    self.context = ParserContext::Empty;
+                },
+                ParserContext::Tag => {
+                    self.current_node = match self.current_node {
+                        None => { None },
+                        Some(ref node) => { node.borrow().deref().parent.clone() }
+                    };
+
+                    self.context = ParserContext::Empty;
                 }
             }
-
-            self.context = ParserContext::Empty;
 
             // A char by char work.. Yes.. That's life
             // THUG LIFE
@@ -152,8 +163,12 @@ impl Parser {
                         self.parse_tag_context(cha);
                     },
 
+                    ParserContext::Attributes => {
+                        self.parse_attribute_context(cha);
+                    }
+
                     // WTF ! Poor lazy man, do your job ! (Yes, I'm not paid for it but..)
-                    _ => { panic!("Transpiler error -- Unimplemented context"); }
+                    _ => { self.parsing_error("Transpiler error -- Unimplemented context"); }
                 }
             }
         }
@@ -220,7 +235,10 @@ impl Parser {
             // Changes the current_node to the current one parent
             '}' => {
                 self.current_node = match self.current_node {
-                    None => { panic!("Syntax error - Found '}' (end block) without a block before"); },
+                    None => {
+                        self.parsing_error("Syntax error - Found '}' (end block) without a block before");
+                        None
+                    },
                     Some(ref node) => {
                         match node.borrow().deref().parent {
                             None => { None },
@@ -235,23 +253,41 @@ impl Parser {
         }
     }
 
-    // A new character in tag context comes will be welcome here :)
-    // Hey !! I'M DORA !!!
+    /// A new character in tag context comes will be welcome here :)
+    /// Hey !! I'M DORA !!!
     fn parse_tag_context(&mut self, cha: char) {
         match cha {
-            '{' => {
+            // Starting block (LOL) attributes or tags
+            '{' | '[' => {
                 match self.current_node {
-                    None => { panic!("No node found"); },
+                    None => { self.parsing_error("No node found"); },
                     Some(ref node) => {
                         node.borrow_mut().deref_mut().name = self.buffer.clone();
                     }
                 }
 
-                self.context = ParserContext::NewBlock;
-                self.buffer.clear();
-            }
+                self.context = match cha {
+                    '{' => ParserContext::NewBlock,
+                    '[' => ParserContext::Attributes,
+                    _   => { panic!("How did you come here ? o.O"); }
+                };
 
-            _ => { self.buffer.push(cha); }
+                self.buffer.clear();
+            },
+
+            ' ' => {},
+            _   => { self.buffer.push(cha); }
         }
+    }
+
+    /// When we are in the attribute context... We are building attributes :)
+    fn parse_attribute_context(&mut self, cha: char) {
+
+    }
+
+    /// Sends the error message !
+    /// The killer method !
+    fn parsing_error(&self, message: &str) {
+        panic!("Parser error line {} - {}", self.line_number, message);
     }
 }
