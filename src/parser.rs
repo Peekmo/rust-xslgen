@@ -139,19 +139,29 @@ impl Parser {
 
             // What to do with the last context
             match self.context {
+                // Nothing...
                 ParserContext::InsideStringContent => {},
+
+                // Checking if there's no attribute already in progress
                 ParserContext::Attributes => {
                     match self.current_attribute {
                         None => {},
                         Some (ref attribute) => { self.parsing_error(format!("Unexpected new line. Attribute {} is not closed", attribute.key).as_slice()); }
                     }
                 },
-                ParserContext::NewBlock | ParserContext::Empty | ParserContext::Expression => {
+
+                // Reinitialize context
+                ParserContext::NewBlock | ParserContext::Empty => {
                     self.context = ParserContext::Empty;
                 },
-                ParserContext::InsideStringAttribute => {
+
+                // No new line for an attribute value or an expression
+                ParserContext::InsideStringAttribute | ParserContext::Expression => {
                     self.parsing_error("Unexpected new line");
                 },
+
+                // Tag context ? Probably an orphan one, let's register it and get back to an empty
+                // context (biatch)
                 ParserContext::Tag => {
                     self.current_node = match self.current_node {
                         None => { None },
@@ -333,6 +343,7 @@ impl Parser {
     /// When we are in the attribute context... We are building attributes :)
     fn parse_attribute_context(&mut self, cha: char) {
         match cha {
+            // End of attributes
             ']' => {
                 match self.current_attribute {
                     None => {},
@@ -353,6 +364,8 @@ impl Parser {
                 self.buffer.clear();
                 self.context = ParserContext::Tag;
             },
+
+            // Key/Value separator
             ':' => {
                 // If there's a ':' with en empty buffer... You're stupid. Sorry for you.
                 if self.buffer.len() == 0 {
@@ -362,6 +375,8 @@ impl Parser {
                 self.current_attribute = Some(Box::new(Attribute::new(self.buffer.clone())));
                 self.buffer.clear();
             },
+
+            // End of the value
             ',' => {
                 match self.current_attribute {
                     None => { self.parsing_error("Unexpected character (attribute delimiter)"); },
@@ -381,6 +396,8 @@ impl Parser {
                 self.current_attribute = None;
                 self.buffer.clear();
             },
+
+            // String value
             '"' => {
                 match self.current_attribute {
                     None => { self.parsing_error("Unexpected token \""); },
