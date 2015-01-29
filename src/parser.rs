@@ -3,6 +3,8 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use core::ops::DerefMut;
 use core::ops::Deref;
+use core::ops::Index;
+use std::ops::RangeFrom;
 
 /// ParserContext's different states
 /// So brillant !
@@ -11,7 +13,8 @@ enum ParserContext {
     Tag,
     Attributes,
     Expression,
-    InsideString,
+    InsideStringContent,
+    InsideStringAttribute,
     NewBlock
 }
 
@@ -41,6 +44,7 @@ pub struct Parser {
     buffer: String,
     context: ParserContext,
     line_number: isize,
+    char_number: isize,
     pub nodes: Vec<Rc<RefCell<Node>>>,
 }
 
@@ -66,9 +70,9 @@ impl Node {
 
 impl Attribute {
     /// LOL
-    pub fn new() -> Self {
+    pub fn new(key: String) -> Self {
         Attribute {
-            key: String::new(),
+            key: key,
             value: String::new()
         }
     }
@@ -84,6 +88,7 @@ impl Parser {
             current_attribute: None,
             buffer: String::new(),
             line_number: 0,
+            char_number: 0,
             context: ParserContext::Empty
         }
     }
@@ -134,9 +139,18 @@ impl Parser {
 
             // What to do with the last context
             match self.context {
-                ParserContext::Attributes | ParserContext::InsideString => {},
+                ParserContext::InsideStringContent => {},
+                ParserContext::Attributes => {
+                    match self.current_attribute {
+                        None => {},
+                        Some (ref attribute) => { self.parsing_error(format!("Unexpected new line. Attribute {} is not closed", attribute.key).as_slice()); }
+                    }
+                },
                 ParserContext::NewBlock | ParserContext::Empty | ParserContext::Expression => {
                     self.context = ParserContext::Empty;
+                },
+                ParserContext::InsideStringAttribute => {
+                    self.parsing_error("Unexpected new line");
                 },
                 ParserContext::Tag => {
                     self.current_node = match self.current_node {
@@ -148,9 +162,12 @@ impl Parser {
                 }
             }
 
+            self.char_number = 0;
+
             // A char by char work.. Yes.. That's life
             // THUG LIFE
             for current_char in line.as_bytes().iter() {
+                self.char_number += 1;
                 let cha = *current_char as char;
 
                 match self.context {
@@ -165,6 +182,26 @@ impl Parser {
 
                     ParserContext::Attributes => {
                         self.parse_attribute_context(cha);
+                    },
+
+                    ParserContext::InsideStringAttribute | ParserContext::InsideStringContent => {
+                        match cha {
+                            '"' => {
+                                if !self.buffer.is_empty() && (self.buffer.index(&RangeFrom {start: self.buffer.len() - 1}) == "\\") {
+                                    self.buffer.push(cha);
+                                } else {
+                                    match self.context {
+                                        ParserContext::InsideStringAttribute => {
+                                            self.buffer.push(cha);
+                                            self.context = ParserContext::Attributes;
+                                        },
+                                        ParserContext::InsideStringContent   => { self.context = ParserContext::Empty }
+                                        _ => { self.parsing_error("How the hell did you come here ?"); }
+                                    }
+                                }
+                            },
+                            _ => { self.buffer.push(cha); }
+                        }
                     }
 
                     // WTF ! Poor lazy man, do your job ! (Yes, I'm not paid for it but..)
@@ -262,7 +299,9 @@ impl Parser {
                 match self.current_node {
                     None => { self.parsing_error("No node found"); },
                     Some(ref node) => {
-                        node.borrow_mut().deref_mut().name = self.buffer.clone();
+                        if node.borrow_mut().deref_mut().name.is_empty() {
+                            node.borrow_mut().deref_mut().name = self.buffer.clone();
+                        }
                     }
                 }
 
@@ -276,18 +315,94 @@ impl Parser {
             },
 
             ' ' => {},
-            _   => { self.buffer.push(cha); }
+            _   => {
+                match self.current_node {
+                    None => { self.parsing_error("No node found"); },
+                    Some(ref node) => {
+                        if !node.borrow_mut().deref_mut().name.is_empty() {
+                            self.parsing_error(format!("Unexpected character - Expected '[' or '{}'", "{").as_slice());
+                        }
+                    }
+                }
+
+                self.buffer.push(cha);
+            }
         }
     }
 
     /// When we are in the attribute context... We are building attributes :)
     fn parse_attribute_context(&mut self, cha: char) {
+        match cha {
+            ']' => {
+                match self.current_attribute {
+                    None => {},
+                    Some(ref attribute) => {
+                        let mut attr = attribute.clone();
+                        attr.value = self.buffer.clone();
 
+                        match self.current_node {
+                            None => { self.parsing_error("Found the end of an attribute without node"); },
+                            Some(ref node) => {
+                                node.borrow_mut().deref_mut().attributes.push(attr.clone());
+                            }
+                        }
+                    }
+                }
+
+                self.current_attribute = None;
+                self.buffer.clear();
+                self.context = ParserContext::Tag;
+            },
+            ':' => {
+                // If there's a ':' with en empty buffer... You're stupid. Sorry for you.
+                if self.buffer.len() == 0 {
+                    self.parsing_error("Unexpected token ':'");
+                }
+
+                self.current_attribute = Some(Box::new(Attribute::new(self.buffer.clone())));
+                self.buffer.clear();
+            },
+            ',' => {
+                match self.current_attribute {
+                    None => { self.parsing_error("Unexpected character (attribute delimiter)"); },
+                    Some(ref attribute) => {
+                        let mut attr = attribute.clone();
+                        attr.value = self.buffer.clone();
+
+                        match self.current_node {
+                            None => { self.parsing_error("Found the end of an attribute without node"); },
+                            Some(ref node) => {
+                                node.borrow_mut().deref_mut().attributes.push(attr.clone());
+                            }
+                        }
+                    }
+                }
+
+                self.current_attribute = None;
+                self.buffer.clear();
+            },
+            '"' => {
+                match self.current_attribute {
+                    None => { self.parsing_error("Unexpected token \""); },
+                    Some (ref attribute) => {
+                        if !self.buffer.is_empty() {
+                            self.parsing_error("Unexpected token \"");
+                        }
+                    }
+                }
+
+                self.buffer.push(cha);
+                self.context = ParserContext::InsideStringAttribute;
+            },
+            ' ' => {},
+            _ => { self.buffer.push(cha); }
+        }
     }
 
     /// Sends the error message !
     /// The killer method !
     fn parsing_error(&self, message: &str) {
-        panic!("Parser error line {} - {}", self.line_number, message);
+        panic!("Parser error line {} char {} - {}", self.line_number, self.char_number, message);
     }
 }
+
