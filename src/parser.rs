@@ -13,6 +13,7 @@ enum ParserContext {
     Tag,
     Attributes,
     Expression,
+    Content,
     InsideStringContent,
     InsideStringAttribute,
     NewBlock
@@ -23,6 +24,7 @@ enum ParserContext {
 pub struct Node {
     pub name: String,
     pub namespace: Option<String>,
+    pub value: Option<String>,
     pub attributes: Vec<Box<Attribute>>,
     pub children: Option<Vec<Rc<RefCell<Node>>>>,
     pub parent: Option<Rc<RefCell<Node>>>
@@ -58,6 +60,7 @@ impl Node {
                 None     => String::new()
             },
             namespace: namespace,
+            value: None,
             attributes: Vec::new(),
             children: None,
             parent: match parser.current_node {
@@ -135,7 +138,6 @@ impl Parser {
         // We will read all the lines.. Yes.. So boring.
         for line in self.xslg_file.clone().iter() {
             self.line_number += 1;
-            self.buffer.clear();
 
             // What to do with the last context
             match self.context {
@@ -162,16 +164,24 @@ impl Parser {
 
                 // Tag context ? Probably an orphan one, let's register it and get back to an empty
                 // context (biatch)
-                ParserContext::Tag => {
+                ParserContext::Tag | ParserContext::Content => {
                     self.current_node = match self.current_node {
                         None => { None },
-                        Some(ref node) => { node.borrow().deref().parent.clone() }
+                        Some(ref node) => {
+                            match self.context {
+                                ParserContext::Content => { node.borrow_mut().deref_mut().value = Some(self.buffer.clone()); },
+                                _ => {}
+                            }
+
+                            node.borrow().deref().parent.clone()
+                        }
                     };
 
                     self.context = ParserContext::Empty;
                 }
             }
 
+            self.buffer.clear();
             self.char_number = 0;
 
             // A char by char work.. Yes.. That's life
@@ -193,6 +203,10 @@ impl Parser {
                     ParserContext::Attributes => {
                         self.parse_attribute_context(cha);
                     },
+
+                    ParserContext::Content => {
+
+                    }
 
                     ParserContext::InsideStringAttribute | ParserContext::InsideStringContent => {
                         match cha {
@@ -305,7 +319,7 @@ impl Parser {
     fn parse_tag_context(&mut self, cha: char) {
         match cha {
             // Starting block (LOL) attributes or tags
-            '{' | '[' => {
+            '{' | '[' | ':' => {
                 match self.current_node {
                     None => { self.parsing_error("No node found"); },
                     Some(ref node) => {
@@ -318,6 +332,7 @@ impl Parser {
                 self.context = match cha {
                     '{' => ParserContext::NewBlock,
                     '[' => ParserContext::Attributes,
+                    ':' => ParserContext::Content,
                     _   => { panic!("How did you come here ? o.O"); }
                 };
 
