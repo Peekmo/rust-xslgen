@@ -31,7 +31,18 @@ fn build_string(nodes: &Vec<Rc<RefCell<Node>>>, string: &mut String, tabs: &mut 
 
         match deref_node.children {
             None => {
-                string.push_str("/>\n");
+                match deref_node.value {
+                    None => { string.push_str("/>\n"); },
+                    // If there's a value => <tag>value</tag>
+                    Some (ref value)=>  {
+                        string.push_str(">");
+                        string.push_str(value.as_slice());
+
+                        string.push_str("</");
+                        add_balise_name(deref_node, string);
+                        string.push_str(">\n");
+                    }
+                }
             },
             Some (ref children) => {
                 string.push_str(">\n");

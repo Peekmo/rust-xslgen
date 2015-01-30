@@ -5,6 +5,7 @@
         dc.DublinCore {
             dc.title : "My title"
             dc.author : "Axel Anceau"
+            dc.version: 1.3
         }
 
 

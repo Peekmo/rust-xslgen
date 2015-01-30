@@ -205,7 +205,21 @@ impl Parser {
                     },
 
                     ParserContext::Content => {
-
+                        match cha {
+                            '"' => {
+                                if self.buffer.is_empty() {
+                                    self.context = ParserContext::InsideStringContent;
+                                } else {
+                                    self.buffer.push(cha);
+                                }
+                            },
+                            ' ' => {
+                                if !self.buffer.is_empty() {
+                                    self.parsing_error("Unexpected space character. Use \" around your string to use it.");
+                                }
+                            },
+                            _ => { self.buffer.push(cha); }
+                        }
                     }
 
                     ParserContext::InsideStringAttribute | ParserContext::InsideStringContent => {
@@ -219,7 +233,9 @@ impl Parser {
                                             self.buffer.push(cha);
                                             self.context = ParserContext::Attributes;
                                         },
-                                        ParserContext::InsideStringContent   => { self.context = ParserContext::Empty }
+                                        ParserContext::InsideStringContent   => {
+                                            self.context = ParserContext::Content
+                                        }
                                         _ => { self.parsing_error("How the hell did you come here ?"); }
                                     }
                                 }
@@ -416,7 +432,7 @@ impl Parser {
             '"' => {
                 match self.current_attribute {
                     None => { self.parsing_error("Unexpected token \""); },
-                    Some (ref attribute) => {
+                    Some (_) => {
                         if !self.buffer.is_empty() {
                             self.parsing_error("Unexpected token \"");
                         }
