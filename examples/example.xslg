@@ -6,6 +6,15 @@
             dc.title : "My title"
             dc.author : "Axel Anceau"
             dc.version: 1.3
+
+            if dc.title = ok {
+                dc.title : "salut tout le monde"
+            } elseif x = 5 and u = ??? { 
+                @call-template [name:"test"]
+            } else {
+                dc.author: "Me",
+                tif.multimedia: "What the fuck ?"
+            }
         }
 
 

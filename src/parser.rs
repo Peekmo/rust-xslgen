@@ -13,6 +13,7 @@ enum ParserContext {
     Tag,
     Attributes,
     Expression,
+    Otherwise,
     Content,
     InsideStringContent,
     InsideStringAttribute,
@@ -142,7 +143,7 @@ impl Parser {
             // What to do with the last context
             match self.context {
                 // Nothing...
-                ParserContext::InsideStringContent => {},
+                ParserContext::InsideStringContent | ParserContext::Expression => {},
 
                 // Checking if there's no attribute already in progress
                 ParserContext::Attributes => {
@@ -158,7 +159,7 @@ impl Parser {
                 },
 
                 // No new line for an attribute value or an expression
-                ParserContext::InsideStringAttribute | ParserContext::Expression => {
+                ParserContext::InsideStringAttribute | ParserContext::Otherwise => {
                     self.parsing_error("Unexpected new line");
                 },
 
@@ -203,6 +204,40 @@ impl Parser {
                     ParserContext::Attributes => {
                         self.parse_attribute_context(cha);
                     },
+
+                    ParserContext::Otherwise => {
+                        match cha {
+                            ' ' => {},
+                            '{' => {
+                                self.context = ParserContext::NewBlock;
+                                self.buffer.clear();
+                            }
+                            _ => { self.parsing_error("Unexpected token"); }
+                        }
+                    }
+
+                    ParserContext::Expression => {
+                        match cha {
+                            '{' => {
+                                match self.current_node {
+                                    None => { self.parsing_error("Expression context without node"); },
+                                    Some(ref node) => {
+                                        let mut content = String::from_str(self.buffer.trim());
+                                        content.push('"');
+
+                                        let mut attribute = Box::new(Attribute::new(String::from_str("test")));
+                                        attribute.value = content.clone();
+
+                                        node.borrow_mut().deref_mut().attributes.push(attribute);
+                                    }
+                                }
+
+                                self.context = ParserContext::NewBlock;
+                                self.buffer.clear();
+                            },
+                            _ => { self.buffer.push(cha); }
+                        }
+                    }
 
                     ParserContext::Content => {
                         match cha {
@@ -281,17 +316,27 @@ impl Parser {
                     "" => {},
 
                     // Conditional expressions (for too perhaps ?)
-                    "if" | "elsif" | "else" => {
-                        let mut node = Node::new(self, None, None);
+                    "if" | "elseif" => {
+                        if self.buffer.as_slice() == "if" {
+                            let node_choose = Node::new(self, Some(String::from_str("xsl")), Some(String::from_str("choose")));
+                            self.set_current_node(Rc::new(RefCell::new(node_choose)));
+                        }
 
-                        // TODO update here after antoine's answer (XSL MASTER)
-                        node.namespace = Some(String::from_str("xsl"));
-                        node.name =  String::from_str("when");
+                        let node_when = Node::new(self, Some(String::from_str("xsl")), Some(String::from_str("when")));
+                        self.set_current_node(Rc::new(RefCell::new(node_when)));
 
                         self.context = ParserContext::Expression;
-                        self.set_current_node(Rc::new(RefCell::new(node)));
                         self.buffer.clear();
+                        self.buffer.push('"');
                     },
+
+                    "else" => {
+                        let node_otherwise = Node::new(self, Some(String::from_str("xsl")), Some(String::from_str("otherwise")));
+                        self.set_current_node(Rc::new(RefCell::new(node_otherwise)));
+
+                        self.context = ParserContext::Otherwise;
+                        self.buffer.clear();
+                    }
 
                     // Everything else is a tag without namespace (like a lonely cowboy)
                     _ => {
