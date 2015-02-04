@@ -15,5 +15,9 @@
             dc.author: "Me",
             tif.multimedia: "What the fuck ?"
         }
+
+        foreach //tif:OI {
+            @call-template [name: "test"]
+        }
     }
 }

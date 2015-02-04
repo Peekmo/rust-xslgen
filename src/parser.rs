@@ -15,6 +15,7 @@ enum ParserContext {
     Expression,
     Otherwise,
     Content,
+    Loop,
     InsideStringContent,
     InsideStringAttribute,
     NewBlock
@@ -143,7 +144,7 @@ impl Parser {
             // What to do with the last context
             match self.context {
                 // Nothing...
-                ParserContext::InsideStringContent | ParserContext::Expression => {},
+                ParserContext::InsideStringContent | ParserContext::Expression | ParserContext::Loop => {},
 
                 // Checking if there's no attribute already in progress
                 ParserContext::Attributes => {
@@ -216,7 +217,7 @@ impl Parser {
                         }
                     }
 
-                    ParserContext::Expression => {
+                    ParserContext::Expression | ParserContext::Loop => {
                         match cha {
                             '{' => {
                                 match self.current_node {
@@ -225,10 +226,19 @@ impl Parser {
                                         let mut content = String::from_str(self.buffer.trim());
                                         content.push('"');
 
-                                        let mut attribute = Box::new(Attribute::new(String::from_str("test")));
-                                        attribute.value = content.clone();
-
-                                        node.borrow_mut().deref_mut().attributes.push(attribute);
+                                        match self.context {
+                                            ParserContext::Expression => {
+                                                let mut attribute = Box::new(Attribute::new(String::from_str("test")));
+                                                attribute.value = content.clone();
+                                                node.borrow_mut().deref_mut().attributes.push(attribute);
+                                            },
+                                            ParserContext::Loop => {
+                                                let mut attribute = Box::new(Attribute::new(String::from_str("select")));
+                                                attribute.value = content.clone();
+                                                node.borrow_mut().deref_mut().attributes.push(attribute);
+                                            },
+                                            _ => { self.parsing_error("How the hell did you get there ?!!!!"); }
+                                        }
                                     }
                                 }
 
@@ -336,7 +346,16 @@ impl Parser {
 
                         self.context = ParserContext::Otherwise;
                         self.buffer.clear();
-                    }
+                    },
+
+                    "foreach" => {
+                        let node_foreach = Node::new(self, Some(String::from_str("xsl")), Some(String::from_str("for-each")));
+                        self.set_current_node(Rc::new(RefCell::new(node_foreach)));
+
+                        self.context = ParserContext::Loop;
+                        self.buffer.clear();
+                        self.buffer.push('"');
+                    },
 
                     // Everything else is a tag without namespace (like a lonely cowboy)
                     _ => {
